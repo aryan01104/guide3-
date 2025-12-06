@@ -5,16 +5,110 @@ from pydantic import BaseModel, Field, ValidationError
 from typing import Optional, List, Literal
 
 
+from pydantic import BaseModel, Field, ValidationError
+from typing import Optional, List, Literal
+
 class ScreenshotSummary(BaseModel):
-    topic: str = Field(..., description="Short phrase for what work/study/task the screenshot reflects")
-    app_or_website: str = Field(..., description="App name or site title")
-    url: Optional[str] = Field(None, description="Visible URL if present")
+    # High-level label for what this specific screenshot is about
+    topic: str = Field(
+        ...,
+        description="Short phrase for what this screenshot is about (e.g. 'avian respiration notes', 'Q4 pitch deck slides')."
+    )
+
+    # 1–2 sentence task-level description
+    semantic_summary: str = Field(
+        ...,
+        description=(
+            "1–2 sentence description of what the user is trying to accomplish in this screenshot, "
+            "including the concrete content (course/project/client) and how it fits into a broader task."
+        )
+    )
+
+    workstream_label: str = Field(
+    ...,
+    description="Life-scale workstream or domain this belongs to (course, product, client, long-term study area)."
+    )
+
+    deliverable_label: str = Field(
+        ...,
+        description="Specific exam/assignment/report/feature/pitch the user is currently working toward."
+    )
+
+
+    # Raw app/site name (titlebar/tab/app label)
+    app_or_website: str = Field(
+        ...,
+        description="Application name or website title shown (e.g. 'Google Chrome – Canvas', 'VS Code', 'PowerPoint')."
+    )
+
+    # Normalized app bucket
+    app_bucket: Literal[
+        "browser",
+        "ide",
+        "pdf_viewer",
+        "notes",
+        "email",
+        "terminal",
+        "file_explorer",
+        "messaging",
+        "media_player",
+        "other",
+    ] = Field(
+        ...,
+        description=(
+            "Coarse category of the active application: one of "
+            "['browser','ide','pdf_viewer','notes','email','terminal','file_explorer','messaging','media_player','other']."
+        )
+    )
+
+    # URL if visible / inferable
+    url: Optional[str] = Field(
+        None,
+        description="Visible URL if a browser address bar can be read; otherwise null."
+    )
+
+    # Micro work type (what kind of interaction)
     work_type: Literal[
-        "reading","note_taking","coding","messaging","browsing",
-        "entertainment","design","spreadsheets","presentation","unknown"
-    ] = Field(..., description="Type of work inferred from the screenshot")
-    confidence: float = Field(..., ge=0.0, le=1.0)
-    evidence: List[str] = Field(default_factory=list, description="Snippets or UI labels that justify the fields")
+        "reading",
+        "note_taking",
+        "coding",
+        "messaging",
+        "browsing",
+        "entertainment",
+        "design",
+        "spreadsheets",
+        "presentation",
+        "unknown",
+    ] = Field(
+        ...,
+        description="Type of work inferred from the screenshot."
+    )
+
+    # Telic vs atelic
+    goal_type: Literal["telic", "atelic", "unknown"] = Field(
+        ...,
+        description=(
+            "Telic if the activity is clearly directed at a concrete outcome/deliverable "
+            "(assignment, pitch, feature, bugfix, report); "
+            "atelic if it is open-ended exploration/consumption without a clear endpoint; "
+            "unknown if not clear."
+        )
+    )
+
+    # Model’s confidence in all of the above
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Overall confidence in correctly filling all fields."
+    )
+
+    # On-screen text justifying the labels
+    evidence: List[str] = Field(
+        default_factory=list,
+        description="Short snippets of visible on-screen text that justify topic, task_anchor, project_label, work_type, and goal_type."
+    )
+
 
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -59,18 +153,86 @@ def analyze_screenshot_with_openai(path: str) -> ScreenshotSummary:
                 "You analyze desktop screenshots and return ONLY JSON that matches the schema. "
                 "Never add extra keys or prose."
             )},
-            {"role": "user", "content": [
-                {"type": "text", "text":
-                 "Extract fields according to the schema. Rules:\n"
-                 "1) topic: what is this page about?\n"
-                 "2) app_or_website: identify the application or website. If a browser, infer active site/tab (favicon/title). "
-                 "3) url: if a browser URL bar is visible, read it; else infer from branding (or null).\n"
-                 "4) Choose ONE work_type from exactly: "
-                 '   ["reading","note_taking","coding","messaging","browsing","entertainment","design","spreadsheets","presentation","unknown"]\n'
-                 "5) confidence: 0–1 based on how well you satisfied 1–4.\n"
-                 "6) evidence: quote small visible on-screen text only (no guesses)."},
-                {"type": "image_url", "image_url": {"url": data_url}}
-            ]}
+            {
+    "role": "user",
+    "content": [
+        {
+            "type": "text",
+            "text":
+                "Extract fields according to the schema. Rules:\n"
+                "\n"
+                "1) topic: a short phrase for what THIS screenshot is about "
+                "(e.g. 'avian respiration notes', 'Q4 investor deck slides', 'Gmail inbox').\n"
+                "\n"
+                "2) semantic_summary: in 1–2 sentences, describe what the user is trying to accomplish in this screenshot, "
+                "what concrete content they are working with (course, project, client, repo, document), and how this fits into "
+                "a broader task (e.g. preparing an assignment, writing a speech, editing a pitch deck, implementing a feature).\n"
+                "   - Focus on TASK-LEVEL meaning, not UI details.\n"
+                "\n"
+                "3) workstream_label: assign the life-scale workstream or domain this activity belongs to. This should be stable "
+                "over weeks or months, not change every session.\n"
+                "   - Examples: 'BIOG 1500 course', 'Global Development course', 'AI Mirror product', "
+                "     'Internship applications', 'Personal reading: Buddhism'.\n"
+                "   - If multiple screenshots on different days would belong to the same semester-long course or long-term project, "
+                "     they should share the same workstream_label.\n"
+                "\n"
+                "4) deliverable_label: assign the specific deliverable or objective the user is currently working toward within the workstream.\n"
+                "   - Examples: 'Study for BIOG Exam 2', 'Write Global Development midterm speech', "
+                "     'Implement episodization coherence function', 'Prepare pitch deck v3', 'Finish lab report section 3'.\n"
+                "   - This is a bounded objective that could be completed over one or several sessions.\n"
+                "\n"
+                "5) app_or_website: name the active application or website as shown in the window/tab/frame title.\n"
+                "\n"
+                "6) app_bucket: choose ONE from exactly:\n"
+                "   ['browser','ide','pdf_viewer','notes','email','terminal','file_explorer','messaging','media_player','other'].\n"
+                "   - 'browser' for Chrome/Firefox/Safari showing web content.\n"
+                "   - 'ide' for code editors like VS Code, PyCharm, etc.\n"
+                "   - 'pdf_viewer' for apps showing PDF documents.\n"
+                "   - 'notes' for note-taking tools (Notion, Obsidian, Apple Notes, etc.).\n"
+                "   - 'email' for email clients (Gmail web, Outlook, etc.).\n"
+                "   - 'terminal' for command-line shells.\n"
+                "   - 'file_explorer' for file managers.\n"
+                "   - 'messaging' for chat apps.\n"
+                "   - 'media_player' for dedicated media players.\n"
+                "   - 'other' if none of the above fit.\n"
+                "\n"
+                "7) url: if a browser URL bar is visible and readable, return the URL string; otherwise use null.\n"
+                "\n"
+                "8) work_type: choose ONE from exactly:\n"
+                "   [\"reading\",\"note_taking\",\"coding\",\"messaging\",\"browsing\",\"entertainment\",\"design\",\"spreadsheets\",\"presentation\",\"unknown\"].\n"
+                "   - 'reading': mainly consuming text (articles, PDFs, textbooks, docs) without editing.\n"
+                "   - 'note_taking': writing structured notes, outlines, or annotations.\n"
+                "   - 'coding': working in code editors, terminals, or IDE tools to write/modify code.\n"
+                "   - 'messaging': chat/email/slack/DM focused.\n"
+                "   - 'browsing': general web surfing, search results, multiple unrelated tabs.\n"
+                "   - 'entertainment': videos, games, social feeds primarily for leisure.\n"
+                "   - 'design': Figma, slide design, visual layout work.\n"
+                "   - 'spreadsheets': Excel/Sheets or similar grid-based work.\n"
+                "   - 'presentation': editing slide decks (PowerPoint, Keynote, Google Slides).\n"
+                "   - 'unknown': if unclear.\n"
+                "\n"
+                "9) goal_type: classify whether the activity is telic, atelic, or unknown.\n"
+                "   - 'telic': clearly directed at a concrete outcome/deliverable (finish an assignment, complete a pitch deck, "
+                "     implement a feature, fix a bug, submit a report, study for a specific exam).\n"
+                "   - 'atelic': open-ended exploration or consumption (browsing, reading for curiosity, watching random videos) "
+                "     without a clear endpoint.\n"
+                "   - 'unknown': if you cannot reliably tell.\n"
+                "\n"
+                "10) confidence: 0–1 reflecting how sure you are about the correctness of ALL fields above.\n"
+                "\n"
+                "11) evidence: provide short snippets of visible on-screen text that justify your choices for workstream_label, "
+                "deliverable_label, work_type, and goal_type.\n"
+                "    - Only quote text that is clearly visible in the screenshot.\n"
+                "    - Do NOT invent or hallucinate text.\n"
+        },
+        {
+            "type": "image_url",
+            "image_url": {"url": data_url}
+        }
+    ]
+}
+
+
         ],
     )
 

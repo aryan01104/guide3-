@@ -8,6 +8,10 @@ import subprocess, time, random, os, threading
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # suppress TensorFlow/MediaPipe logs
 from subfuncsProcessing.face_analysis import points_from_landmarks, eye_AR, mouth_AR, analyze_window, cv2, mp, FPS, EVAL_INTERVAL, FRAME_BATCH, BATCH_SEC
 from datetime import datetime
+from subfuncEp.episoder import update_episodes_with_screenshot
+from subfuncEp.label_canonicalizer import canonicalize_workstream, canonicalize_deliverable
+
+
 
 
 INTERVAL_1 = 10  # seconds between captures
@@ -35,13 +39,44 @@ def screenshot_loop():
                     print(f"(S.e(3))OpenAI vision error: {e}")
                 else:
                     print("(S.4) inserting into Supabase")
-                    allowed_cols = {"topic","app_or_website","url","work_type","confidence"}
+                    # 1) canonicalize workstream & deliverable
+                    ws_id, ws_label = canonicalize_workstream(summary.workstream_label)
+                    dv_id, dv_label = canonicalize_deliverable(ws_id, summary.deliverable_label)
+
+                    # 2) build row for screenshots insert
+                    allowed_cols = {
+                        "topic",
+                        "semantic_summary",
+                        "workstream_label",
+                        "deliverable_label",
+                        "app_or_website",
+                        "app_bucket",
+                        "url",
+                        "work_type",
+                        "goal_type",
+                        "confidence",
+                    }
+
                     row = {k: v for k, v in summary.model_dump().items() if k in allowed_cols}
+
                     row["timestamp"] = Path(screenshot_location).stem
+                    row["workstream_id"] = ws_id
+                    row["deliverable_id"] = dv_id
+                    row["workstream_label"] = ws_label      # canonical text
+                    row["deliverable_label"] = dv_label     # canonical text
                     try:
                         db_resp = supabase.table("screenshots").insert(row).execute()
                         print(db_resp)
                         # TODO: delete the local image in production if desired
+
+                        # episoding: update in-memory session state and flush closed episodes
+                        if db_resp.data:
+                            try:
+                                update_episodes_with_screenshot(db_resp.data[0])
+                            except Exception as epi_e:
+                                print(f"(EPI.e) Episoding failed: {epi_e}")
+                        else:
+                            print("(EPI.e) screenshots insert returned no data; skipping episoding.")
                     except Exception as e:
                         print(f"(S.e(4))Supabase insert failed: {e}")
             else:
