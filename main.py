@@ -45,7 +45,6 @@ def screenshot_loop():
 
                     # 2) build row for screenshots insert
                     allowed_cols = {
-                        "topic",
                         "semantic_summary",
                         "workstream_label",
                         "deliverable_label",
