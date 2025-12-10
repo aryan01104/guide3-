@@ -9,7 +9,10 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # suppress TensorFlow/MediaPipe logs
 from subfuncsProcessing.face_analysis import points_from_landmarks, eye_AR, mouth_AR, analyze_window, cv2, mp, FPS, EVAL_INTERVAL, FRAME_BATCH, BATCH_SEC
 from datetime import datetime
 from subfuncEp.episoder import advance_episoder
-from subfuncEp.label_canonicalizer import canonicalize_workstream, canonicalize_deliverable
+from subfuncEp.semantic_canonicalizer import (
+    canonicalize_workstream,
+    canonicalize_deliverable,
+)
 
 
 
@@ -40,9 +43,18 @@ def screenshot_loop():
                 else:
                     #print("(S.4) inserting into Supabase")
                     # 1) canonicalize workstream & deliverable
-                    ws_id, ws_label = canonicalize_workstream(summary.workstream_label)
-                    dv_id, dv_label = canonicalize_deliverable(ws_id, summary.deliverable_label)
+                    # 1) canonicalize workstream & deliverable
+                    ws_id, ws_label = canonicalize_workstream(
+                        summary.workstream_label,
+                        summary.semantic_summary,
+                    )
 
+                    dv_id, dv_label = canonicalize_deliverable(
+                        ws_id,
+                        ws_label,                    # canonical WS label
+                        summary.deliverable_label,
+                        summary.semantic_summary,
+                    )
                     # 2) build row for screenshots insert
                     allowed_cols = {
                         "semantic_summary",
@@ -50,7 +62,6 @@ def screenshot_loop():
                         "deliverable_label",
                         "app_or_website",
                         "app_bucket",
-                        "url",
                         "work_type",
                         "goal_type",
                         "confidence",

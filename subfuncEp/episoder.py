@@ -40,56 +40,8 @@ def _build_episode_descriptor(ep: EpisodeState, max_examples: int = 5) -> Dict[s
     """
     Build a compact, textual descriptor of the ongoing episode to show GPT.
     This is the 'archetype' representation (whereas a kind of screenshot is a micro-archetype).
-
-    *** Field semantics (including allowed value types):
-
-    - time_span.start / time_span.end:
-        ISO-8601 strings. These come directly from Python datetime objects and
-        have no predefined categorical set.
-
-    - screenshot_count:
-        Integer count of screenshots in the episode; not categorical.
-
-    - dominant_project_label:
-        Source: row["project_label"].
-        Allowed values: free-form string (idiosyncratic; not restricted to any fixed set).
-        Meaning: coarse project/domain label inferred from screenshot content.
-
-    - dominant_task_anchor:
-        Source: row["task_anchor"].
-        Allowed values: free-form string (idiosyncratic; GPT-generated).
-        Meaning: the specific bounded task or deliverable (e.g. assignment name,
-        essay, pitch deck, feature, bugfix).
-
-    - dominant_app_bucket:
-        Source: row["app_bucket"].
-        Allowed values (enumeration fixed by screenshot schema):
-            ["browser","ide","pdf_viewer","notes","email",
-             "terminal","file_explorer","messaging","media_player","other"]
-        Meaning: coarse category of active application; represents primary modality
-        of work, not transient switches.
-
-    - dominant_work_type:
-        Source: row["work_type"].
-        Allowed values (enumeration fixed by screenshot schema):
-            ["reading","note_taking","coding","messaging","browsing",
-             "entertainment","design","spreadsheets","presentation","unknown"]
-        Meaning: typical interaction style during this episode.
-
-    - dominant_goal_type:
-        Source: row["goal_type"].
-        Allowed values (enumeration fixed by screenshot schema):
-            ["telic","atelic","unknown"]
-        Meaning: whether the episode is oriented toward a specific outcome
-        (telic) or reflects open-ended exploration (atelic).
-
-    - example_summaries:
-        A list of up to `max_examples` recent semantic_summary strings
-        (falling back to topic if semantic_summary is missing). Values are
-        free-form natural-language text. These provide concrete semantic examples
-        that help GPT/model judge whether a new screenshot aligns with the
-        current episode’s content and intent.
     """
+
     rows = ep.screenshot_rows
     if not rows:
         return {}
@@ -147,7 +99,6 @@ def _build_screenshot_descriptor(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-
 def _log_coherence_label(
     ep: EpisodeState,
     shot_row: Dict[str, Any],
@@ -169,7 +120,7 @@ def _log_coherence_label(
     }
     try:
         resp = supabase.table("coherence_labels").insert(row).execute()
-        print(f"(COH.✓) Logged coherence label: {resp}")
+        print(f"(COH.✓) Logged coherence label")
     except Exception as e:
         print(f"(COH.e) Failed to insert coherence label: {e}")
 
