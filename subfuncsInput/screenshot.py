@@ -21,7 +21,7 @@ def capture_screenshot(folder_path="raw/screenshots"):
     try:
         screenshot = ImageGrab.grab()
         screenshot.save(full_path, "PNG")
-        print(f"Screenshot saved successfully as: {full_path}")
+        #print(f"Screenshot saved successfully as: {full_path}")
         return full_path
     except Exception as e:
         print(f"Failed to capture screenshot: {e}")

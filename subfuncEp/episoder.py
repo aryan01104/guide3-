@@ -95,14 +95,14 @@ def _build_episode_descriptor(ep: EpisodeState, max_examples: int = 5) -> Dict[s
         return {}
 
     # dominant categorical fields
-    project_labels = [(r.get("project_label") or "unknown") for r in rows]
-    task_anchors   = [(r.get("task_anchor")   or "unknown") for r in rows]
+    workstream_labels = [(r.get("workstream_label") or "unknown") for r in rows]
+    deliverable_labels = [(r.get("deliverable_label") or "unknown") for r in rows]
     app_buckets    = [(r.get("app_bucket")    or "other")   for r in rows]
     work_types     = [(r.get("work_type")     or "unknown") for r in rows]
     goal_types     = [(r.get("goal_type")     or "unknown") for r in rows]
 
-    dominant_project = _mode(project_labels)
-    dominant_task    = _mode(task_anchors)
+    dominant_workstream = _mode(workstream_labels)
+    dominant_deliverable = _mode(deliverable_labels)
     dominant_app     = _mode(app_buckets)
     dominant_work    = _mode(work_types)
     dominant_goal    = _mode(goal_types)
@@ -120,8 +120,8 @@ def _build_episode_descriptor(ep: EpisodeState, max_examples: int = 5) -> Dict[s
             "end": ep.end_time.isoformat(),
         },
         "screenshot_count": len(rows),
-        "dominant_project_label": dominant_project,
-        "dominant_task_anchor": dominant_task,
+        "dominant_project_label": dominant_workstream,
+        "dominant_task_anchor": dominant_deliverable,
         "dominant_app_bucket": dominant_app,
         "dominant_work_type": dominant_work,
         "dominant_goal_type": dominant_goal,
@@ -140,11 +140,12 @@ def _build_screenshot_descriptor(row: Dict[str, Any]) -> Dict[str, Any]:
         "url": row.get("url"),
         "topic": row.get("topic"),
         "semantic_summary": row.get("semantic_summary"),
-        "task_anchor": row.get("task_anchor"),
-        "project_label": row.get("project_label"),
+        "workstream_label": row.get("workstream_label"),
+        "deliverable_label": row.get("deliverable_label"),
         "work_type": row.get("work_type"),
         "goal_type": row.get("goal_type"),
     }
+
 
 
 def _log_coherence_label(
@@ -185,7 +186,8 @@ class EpisodeState:
     screenshot_rows: List[Dict[str, Any]] = field(default_factory=list)
 
     # optional aggregates
-    project_labels: List[str] = field(default_factory=list)
+    workstream_labels: List[str] = field(default_factory=list)
+    deliverable_labels: List[str] = field(default_factory=list)
     goal_types: List[str] = field(default_factory=list)
     work_types: List[str] = field(default_factory=list)
     apps: List[str] = field(default_factory=list)
@@ -199,7 +201,8 @@ class EpisodeState:
         if "id" in row:
             self.screenshot_ids.append(row["id"])
 
-        self.project_labels.append((row.get("project_label") or "unknown").strip())
+        self.workstream_labels.append((row.get("workstream_label") or "unknown").strip())
+        self.deliverable_labels.append((row.get("deliverable_label") or "unknown").strip())
         self.goal_types.append((row.get("goal_type") or "unknown").strip())
         self.work_types.append((row.get("work_type") or "unknown").strip())
         self.apps.append((row.get("app_or_website") or "unknown").strip())
@@ -222,12 +225,13 @@ class EpisodeState:
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat(),
             "screenshot_count": len(self.screenshot_rows),
-            "project_label": _mode(self.project_labels),
+            "workstream_label": _mode(self.workstream_labels),
+            "deliverable_label": _mode(self.deliverable_labels),
             "goal_type": _mode(self.goal_types),
-            "work_band": _mode(self.work_types),      # you can map work_type→band later if desired
+            "work_band": _mode(self.work_types),
             "app_or_website": _mode(self.apps),
-            # you can add more aggregates later (dominant topic, etc.)
         }
+
 
 
 # ---------- Global episodization state --------------------------------------
